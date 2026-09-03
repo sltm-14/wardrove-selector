@@ -69,6 +69,36 @@ eval_transform = transforms.Compose([
 ])
 
 
+class ViTGarmentDataset(Dataset):
+    """Same role as wardroveDataset, but preprocesses images with a HuggingFace
+    `processor` instead of a torchvision transform -- required so images match
+    the exact normalization/resizing the pretrained ViT checkpoint expects.
+    Kept as a separate class (not merged into wardroveDataset) on purpose: the
+    two pipelines are genuinely different, and keeping them separate is more
+    readable than branching one class on which preprocessing to use.
+    """
+
+    def __init__(self, dataframe, target_imgs_dir, processor):
+        self.dataframe = dataframe
+        self.target_imgs_dir = target_imgs_dir
+        self.processor = processor
+        self.label_to_val = {label: val for val, label in enumerate(categories)}
+
+    def __len__(self):
+        return len(self.dataframe)
+
+    def __getitem__(self, idx):
+        row = self.dataframe.iloc[idx]
+        path = f'{self.target_imgs_dir}/{row["id"]}.jpg'
+        image = Image.open(path).convert("RGB")
+        # return_tensors="pt" gives a batch of size 1 ([1, 3, 224, 224]); [0]
+        # drops that batch dim -- the DataLoader adds its own batch dim later
+        pixel_values = self.processor(image, return_tensors="pt")["pixel_values"][0]
+        label_val = self.label_to_val[row["articleType"]]
+
+        return pixel_values, label_val
+
+
 def get_dataloaders(batch_size=32):
 
     df = pd.read_csv(f"{BASE_DIR}/../data/clean_data/clean_df.csv")
