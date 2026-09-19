@@ -1,4 +1,4 @@
-# Wardrobe Selector — Garment Classifier: CNN from Scratch vs. Fine-tuned ViT
+# Garment Classifier: CNN from Scratch vs. Fine-tuned ViT
 
 Real-time garment classifier built to compare two fundamentally different approaches to
 image classification: a **CNN designed and trained from scratch** (no transfer learning)
