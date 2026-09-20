@@ -102,6 +102,16 @@ just a plan.
 | Inference latency (TensorRT EP) | 1.922 ms avg (±0.080 ms std; 100 runs, 50 warm-up) |
 | Throughput (TensorRT EP) | ~520 images/sec (**~1.7x faster than CUDA EP**) |
 | TensorRT engine build time | 24.6 ms (included in the first, untimed run) |
+| Power draw, idle (`VDD_IN`) | ~3.7 W |
+| Power draw, under load (`VDD_IN`) | ~4.3 W avg, ~5.1 W peak (~+580 mW over idle) |
+| Temperature, idle → under load | ~45-47°C → ~47.6°C max (no throttling observed) |
+
+Power/thermal measured with `tegrastats` (built into JetPack). Two honest caveats:
+`GR3D_FREQ` (GPU utilization) reads near 0% in most samples because each
+inference takes ~1.9ms while `tegrastats` samples every 200ms — most samples
+land between inferences, not during one. Also, part of the "load" window
+includes Python process startup/import overhead (the benchmark script was
+re-invoked 5 times), not purely isolated inference power.
 
 Validated on a random sample of 70 images (5 per category, drawn from the full
 labeled dataset, not exclusively the held-out `test_df`) — enough to confirm
