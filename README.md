@@ -84,6 +84,56 @@ Once fixed, the remaining disagreements were mostly the same Tshirt/Top ambiguit
 already visible in the formal confusion matrix. This is evidence that the model's
 "errors" reflect a real taxonomy ambiguity, not a new failure mode.
 
+## Edge Deployment (NVIDIA Jetson Orin Nano)
+
+The CNN (from scratch) was exported to ONNX and deployed on a Jetson Orin Nano
+(JetPack 6.2, CUDA 12.6) to get real, measured evidence of edge inference, not
+just a plan.
+
+### Results
+
+| Metric | Value |
+| --- | --- |
+| Export format | ONNX, opset 18 (requested 17; exporter fell back to 18 after an internal downgrade step failed, correct result either way) |
+| ONNX vs. PyTorch prediction agreement | 70/70 (100%) |
+| Max logit difference (ONNX vs. PyTorch) | 0.004997 |
+| Inference latency (ONNX Runtime, CUDA EP) | 3.236 ms avg (±0.659 ms std; 100 runs, 50 warm-up) |
+| Throughput (CUDA EP) | ~309 images/sec |
+| Inference latency (TensorRT EP) | 1.922 ms avg (±0.080 ms std; 100 runs, 50 warm-up) |
+| Throughput (TensorRT EP) | ~520 images/sec (**~1.7x faster than CUDA EP**) |
+| TensorRT engine build time | 24.6 ms (included in the first, untimed run) |
+
+Validated on a random sample of 70 images (5 per category, drawn from the full
+labeled dataset, not exclusively the held-out `test_df`) — enough to confirm
+the export preserves model behavior exactly; not intended as a formal
+test-set re-evaluation (hence accuracy on this sample, 75.7% for both
+PyTorch and ONNX, isn't directly comparable to the 86% reported above).
+
+### Setup problems and fixes
+
+Getting PyTorch running on the Jetson surfaced three separate environment
+issues, each real and worth documenting:
+
+1. **Version pinning backfired.** Constraining `torch<2.8` to dodge a
+   missing-library error made pip silently fall back to a generic CUDA 13
+   build incompatible with the Jetson's driver (`torch.cuda.is_available()`
+   returned `False`). Fixed by reinstalling the correct Jetson-specific build
+   (torch 2.11.0) from the `jetson-ai-lab` index without a version constraint.
+2. **Missing `libcudss.so.0`.** Recent PyTorch builds for Jetson depend on
+   cuDSS (CUDA Sparse Solver), which JetPack doesn't ship. Fixed by installing
+   NVIDIA's cuDSS archive directly into `/usr/local/cuda`.
+3. **pandas/numpy ABI mismatch.** Installing PyTorch pulled a newer numpy
+   (2.2.6) into user site-packages, breaking the system's apt-installed pandas
+   (built against an older numpy ABI). Fixed with `pip install --upgrade pandas`.
+
+None of these are specific to this project — they're the standard friction of
+running less-common ML frameworks on ARM64/edge hardware, exactly the kind of
+debugging this deployment was meant to surface.
+
+### What's next
+
+- Phase 3 (stretch): rule-based outfit selector.
+
 ## Repository structure
 
 ```
@@ -110,10 +160,3 @@ automatically for either a local machine or Google Colab.
 (Kaggle, `paramaggarwal`): ~44k product images with metadata. Filtered down to 14
 `articleType` categories most relevant to a wardrobe/outfit use case, ~20,400 images
 after cleaning (removing rows with missing or corrupted images).
-
-## What's next
-
-- **Phase 2 (planned):** export both models to ONNX, deploy on a Jetson Nano, measure
-  and compare inference latency before/after INT8 quantization.
-- **Phase 3 (stretch):** a rule-based outfit selector on top of the classifier; no ML
-  compatibility model, just structural rules by garment role and weather.
